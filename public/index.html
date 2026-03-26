@@ -3,73 +3,24 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ⲎⲨⲂꞄⲒⲆⲈ-ⲘⲆ | Session Generator</title>
+    <title>ⲎⲨⲂꞄⲒⲆⲈ-ⲘⲆ V3</title>
+    <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        :root { --neon: #00f2ff; --bg: #050505; }
-        body { background: var(--bg); color: white; font-family: 'Segoe UI', sans-serif; display: flex; align-items: center; justify-content: center; min-height: 100vh; margin: 0; }
-        .container { background: rgba(255, 255, 255, 0.03); border: 1px solid var(--neon); padding: 40px; border-radius: 20px; box-shadow: 0 0 30px rgba(0, 242, 255, 0.2); text-align: center; width: 90%; max-width: 450px; }
-        h1 { color: var(--neon); letter-spacing: 5px; font-size: 22px; text-transform: uppercase; }
-        .box { margin-bottom: 20px; border-bottom: 1px solid #222; padding-bottom: 20px; }
-        input { background: #111; border: 1px solid #333; padding: 12px; width: 85%; border-radius: 8px; color: white; margin-bottom: 10px; outline: none; }
-        button { background: var(--neon); color: black; border: none; padding: 12px 20px; border-radius: 8px; font-weight: bold; cursor: pointer; transition: 0.3s; width: 100%; margin: 5px 0; }
-        button.alt { background: transparent; border: 1px solid var(--neon); color: var(--neon); }
-        button:hover { transform: scale(1.02); box-shadow: 0 0 15px var(--neon); }
-        #display { margin-top: 20px; min-height: 50px; }
-        img { width: 200px; border: 5px solid white; border-radius: 10px; }
-        .code-text { font-size: 32px; color: #ff00ff; font-weight: bold; letter-spacing: 5px; background: #111; padding: 10px; border-radius: 5px; }
-        .loader { display: none; color: var(--neon); animation: blink 1s infinite; margin: 15px 0; font-weight: bold; }
-        @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+        body { background: radial-gradient(circle at top, #1a1a2e, #020205); min-height: 100vh; color: white; }
+        .glass { background: rgba(255,255,255,0.05); backdrop-filter: blur(10px); border: 1px solid rgba(255,255,255,0.1); }
+        .neon-text { text-shadow: 0 0 10px #8b5cf6, 0 0 20px #8b5cf6; }
+        .loader { border-top-color: #8b5cf6; animation: spin 1s linear infinite; }
+        @keyframes spin { to { transform: rotate(360deg); } }
     </style>
 </head>
-<body>
-    <div class="container">
-        <h1>ⲎⲨⲂꞄⲒⲆⲈ-ⲘⲆ</h1>
-        <p>Générateur de Session Officiel</p>
-
-        <div class="box">
-            <button class="alt" onclick="getQR()">📷 SCANNER QR CODE</button>
+<body class="flex items-center justify-center p-4">
+    <div class="glass w-full max-w-md p-8 rounded-3xl shadow-2xl text-center">
+        <div class="bg-indigo-600 w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4">
+            <span class="text-2xl">⚡</span>
         </div>
-
-        <div class="box">
-            <input type="text" id="phone" placeholder="Numéro (ex: 22376016473)">
-            <button onclick="getPairing()">🔑 OBTENIR PAIRING CODE</button>
-        </div>
-
-        <div id="loader" class="loader">TRAITEMENT EN COURS...</div>
-        <div id="display"></div>
+        <h1 class="text-2xl font-bold tracking-widest neon-text mb-1">ⲎⲨⲂꞄⲒⲆⲈ-ⲘⲆ V3</h1>
+        <p class="text-gray-400 text-sm mb-8 font-light">Générateur de Code de Pairage</p>
+        ...
     </div>
-
-    <script>
-        const display = document.getElementById('display');
-        const loader = document.getElementById('loader');
-
-        async function getQR() {
-            loader.style.display = 'block';
-            display.innerHTML = '';
-            try {
-                const res = await fetch('/session?type=qr');
-                const data = await res.json();
-                loader.style.display = 'none';
-                if (data.qr) {
-                    display.innerHTML = `<img src="${data.qr}"><p>Scannez ce code avec WhatsApp</p>`;
-                }
-            } catch (e) { loader.style.display = 'none'; alert("Erreur serveur"); }
-        }
-
-        async function getPairing() {
-            const num = document.getElementById('phone').value;
-            if (!num) return alert("Entrez un numéro !");
-            loader.style.display = 'block';
-            display.innerHTML = '';
-            try {
-                const res = await fetch(`/session?type=pair&number=${num}`);
-                const data = await res.json();
-                loader.style.display = 'none';
-                if (data.code) {
-                    display.innerHTML = `<div class="code-text">${data.code}</div><p>Entrez ce code sur WhatsApp</p>`;
-                }
-            } catch (e) { loader.style.display = 'none'; alert("Erreur serveur"); }
-        }
-    </script>
 </body>
 </html>
