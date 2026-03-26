@@ -1,94 +1,122 @@
 const express = require('express');
-const { default: makeWASocket, useMultiFileAuthState, delay, makeCacheableSignalKeyStore, Browsers } = require("@whiskeysockets/baileys");
+const { 
+    default: makeWASocket, 
+    useMultiFileAuthState, 
+    delay, 
+    makeCacheableSignalKeyStore, 
+    fetchLatestBaileysVersion
+} = require("@whiskeysockets/baileys");
 const pino = require("pino");
 const fs = require("fs-extra");
 const path = require("path");
 const axios = require("axios");
+
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// 🔑 TA CLÉ API PASTEBIN
-const PASTEBIN_API_KEY = "Nl_9mAGsEssqcDevULF4FItMAasK5gQb"; 
-
-// 🖼️ LIEN DE TON IMAGE PERSO (Remplace par ton lien direct)
-const IMAGE_URL = "https://i.ibb.co/v4b4x80/hybride-logo.jpg"; 
-
 app.use(express.static('public'));
+
+// Nettoyage des sessions au démarrage
+if (fs.existsSync('./sessions')) {
+    fs.emptyDirSync('./sessions');
+}
 
 app.get('/session', async (req, res) => {
     const num = req.query.number;
-    const type = req.query.type;
-    const sessionDir = path.join(__dirname, 'temp_' + Date.now());
-    const { state, saveCreds } = await useMultiFileAuthState(sessionDir);
+    if (!num) return res.status(400).send({ error: "Numéro requis" });
 
-    try {
-        let sock = makeWASocket({
+    const targetNumber = num.replace(/[^0-9]/g, '');
+    const sessionDir = path.join(__dirname, 'sessions', 'temp_' + Date.now());
+    
+    let codeSent = false;
+    let sessionGenerated = false;
+
+    const { version } = await fetchLatestBaileysVersion();
+
+    const startSocket = async () => {
+        const { state, saveCreds } = await useMultiFileAuthState(sessionDir);
+
+        const sock = makeWASocket({
+            version,
             auth: {
                 creds: state.creds,
                 keys: makeCacheableSignalKeyStore(state.keys, pino({ level: "silent" })),
             },
             printQRInTerminal: false,
             logger: pino({ level: "silent" }),
-            browser: ["Mac OS", "Safari", "10.15.7"] 
+            browser: ['Mac OS', 'Safari', '10.15.7'],
+            syncFullHistory: false,
+            connectTimeoutMs: 100000,
+            defaultQueryTimeoutMs: 60000,
+            keepAliveIntervalMs: 20000,
         });
 
-        // GESTION QR CODE
-        if (type === 'qr') {
-            sock.ev.on('connection.update', async (update) => {
-                const { qr } = update;
-                if (qr) {
-                    const QRCode = require('qrcode');
-                    const qrBase64 = await QRCode.toDataURL(qr);
-                    res.send({ qr: qrBase64 });
-                }
-            });
-        }
-
-        // GESTION PAIRING CODE
-        if (type === 'pair' && num) {
-            await delay(2000);
-            const code = await sock.requestPairingCode(num.replace(/[^0-9]/g, ''));
-            res.send({ code: code });
+        // --- GÉNÉRATION DU CODE ---
+        if (!codeSent && !sock.authState.creds.registered) {
+            await delay(8000); 
+            try {
+                const code = await sock.requestPairingCode(targetNumber);
+                const formattedCode = code?.match(/.{1,4}/g)?.join("-") || code;
+                codeSent = true;
+                if (!res.headersSent) res.send({ code: formattedCode });
+            } catch (e) {
+                if (!res.headersSent) res.status(500).send({ error: "Erreur pairing" });
+            }
         }
 
         sock.ev.on('creds.update', saveCreds);
 
         sock.ev.on('connection.update', async (update) => {
-            const { connection } = update;
-            if (connection === "open") {
-                await delay(5000);
-                const creds = await fs.readJson(path.join(sessionDir, 'creds.json'));
-                
+            const { connection, lastDisconnect } = update;
+
+            if (connection === 'close') {
+                const statusCode = lastDisconnect?.error?.output?.statusCode;
+                if (statusCode !== 401 && !sessionGenerated) {
+                    await delay(5000);
+                    startSocket();
+                } else {
+                    fs.removeSync(sessionDir);
+                }
+            }
+
+            if (connection === 'open') {
+                if (sessionGenerated) return;
+                sessionGenerated = true;
+                await delay(5000); 
+
                 try {
+                    // 🚀 EXTRACTION DIRECTE DEPUIS LA MÉMOIRE (RAM)
+                    const credsToExport = sock.authState.creds;
+
                     const params = new URLSearchParams();
-                    params.append('api_dev_key', PASTEBIN_API_KEY);
+                    params.append('api_dev_key', "Nl_9mAGsEssqcDevULF4FItMAasK5gQb");
                     params.append('api_option', 'paste');
-                    params.append('api_paste_code', JSON.stringify(creds));
-                    params.append('api_paste_private', '1'); 
-                    params.append('api_paste_name', 'Hybride-Session');
-                    params.append('api_paste_expire_date', '10M'); 
+                    params.append('api_paste_code', JSON.stringify(credsToExport));
+                    params.append('api_paste_private', '1');
+                    params.append('api_paste_expire_date', '10M');
 
                     const pasteRes = await axios.post('https://pastebin.com/api_post', params);
-                    const pasteId = pasteRes.data.split('/').pop();
-                    const sessionID = "HYE~" + pasteId;
-
-                    // Message avec ton image et remerciements
-                    await sock.sendMessage(sock.user.id, { 
-                        image: { url: IMAGE_URL },
-                        caption: `🚀 *ⲎⲨⲂꞄⲒⲆⲈ-ⲘⲆ*\n\nMerci d'avoir utilisé notre générateur. Votre session est prête.` 
-                    });
-
-                    // Message séparé avec l'ID court
-                    await delay(1500);
-                    await sock.sendMessage(sock.user.id, { text: `${sessionID}` });
-
-                } catch (e) { console.error("Erreur Pastebin:", e.message); }
-                
-                await delay(2000);
-                fs.removeSync(sessionDir);
+                    
+                    if (pasteRes.data && pasteRes.data.includes('pastebin.com')) {
+                        const sessionID = "HYE~" + pasteRes.data.split('/').pop();
+                        const jid = sock.user.id.split(':')[0] + '@s.whatsapp.net';
+                        
+                        await sock.sendMessage(jid, { 
+                            image: { url: "https://files.catbox.moe/szt37y.jpg" },
+                            caption: `🚀 *ⲎⲨⲂꞄⲒⲆⲈ-ⲘⲆ V3*\n\n*SESSION ID :* \`${sessionID}\`\n\n_Généré avec succès sur Render._` 
+                        });
+                    }
+                } catch (e) {
+                    console.error("Erreur finalisation");
+                }
+                setTimeout(() => fs.removeSync(sessionDir), 20000);
             }
         });
-    } catch (err) { res.status(500).send({ error: "Erreur" }); }
+    };
+
+    startSocket().catch(() => {
+        if (!res.headersSent) res.status(500).send({ error: "Crash" });
+    });
 });
 
-app.listen(PORT, () => console.log(`🚀 ⲎⲨⲂꞄⲒⲆⲈ-ⲘⲆ GENERATOR ONLINE`));
+app.listen(PORT, () => console.log(`🚀 SERVEUR ACTIF PORT ${PORT}`));
