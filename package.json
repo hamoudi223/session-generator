@@ -1,0 +1,21 @@
+{
+  "name": "hybride-md-gen-v3",
+  "version": "1.5.0",
+  "description": "Générateur de Session ID ⲎⲨⲂꞄⲒⲆⲈ-ⲘⲆ - Dual Mode",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "@whiskeysockets/baileys": "latest",
+    "express": "^4.19.2",
+    "pino": "^9.0.0",
+    "fs-extra": "^11.2.0",
+    "axios": "^1.6.8",
+    "qrcode": "^1.5.3",
+    "node-cache": "^5.1.2"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
